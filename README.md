@@ -20,4 +20,4 @@
 
 **Reason For Code**: The code aims  to get students more accustomed to the technologies used in designing and implementing a RESTful API server.
 
-**Faurite low effort food**: Mac and Cheese
+**Favourite low effort food**: Mac and Cheese
