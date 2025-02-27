@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from typing import Annotated, List
 from dotenv import load_dotenv
 import os
+from bson import ObjectId
 
 load_dotenv ()
 
@@ -58,13 +59,15 @@ class ProfileCollection(BaseModel):
     profiles: List[Profile]
     
 async def update_profile():
-    profile = await newprofile.find_one({})
+    profile = await profile_db["Files"].find_one({})
     profile_object = Profile(**profile)
     profile_object.last_updated = datetime.now()
+    profile_dict =  profile_object.model_dump()
+    profile_db["Files"].find_one_and_update({"_id": PyObjectId(profile["_id"])},{"$set":profile_dict})
 
 @app.post("/profile",status_code= 201)
 async def create_profile(profile_request: Profile):
-    profile_dictionary = profile_request.model_dump()
+    profile_dictionary = profile_request.model_dump(exclude="id")
     created_profile = await profile_db["Files"].insert_one(profile_dictionary)
     profile = await profile_db["Files"].find_one({"_id": created_profile.inserted_id})
     if profile is None:
@@ -87,33 +90,26 @@ async def get_tank():
 
 @app.post("/tank")
 async def create_tank(tank_request: Tank):
-    tank_dictionary= tank_request.model_dump()
+    tank_dictionary= tank_request.model_dump(exclude="id")
     created_tank= await tank_db["tanks"].insert_one(tank_dictionary)
     tank = await tank_db["tanks"].find_one({"_id": created_tank.inserted_id})
     if tank is None:
         raise HTTPException(400)
+    #await update_profile()
     return Tank(**tank)
   
 @app.delete("/tank/{id}")
 async def delete_tank(id: str):
-    tank = await tank_db["tanks"].find_one({"_id": PyObjectId(id)})
-    if not tank:
-        raise HTTPException(status_code=404, detail="tank is not here")
-    
-    deleted_tank = await tank_db["tanks"].delete_one({"_id": PyObjectId(id)})
-    if deleted_tank.deleted_count == 1:
-        return Response (status_code= 204)
-    else:
-        HTTPException(status_code= 404, detail="Tank not found")
+    tank_deletion = await tank_db["tanks"].delete_one({"_id": ObjectId(id)})
+    if tank_deletion.deleted_count == 1:
+        return Response(status_code= 204)
+    raise HTTPException(status_code= 404, detail=f"Tank {id} not found")
     
 @app.patch("/tank/{id}")
-async def update_tank(id: str, tank_update:TankUpdate):
-    update_tank_dict = tank_update.model_dump(exclude_unset= True)
-    updated_tank = await tank_db["tanks"].find_one_and_update({"_id":PyObjectId(id)}, {"$set": update_tank_dict}, return_document=True)
-    tank = await tank_db["tanks"].find_one({"_id":PyObjectId(id)})
-    if not tank:  
+async def update_tank(id: str, tank_update_request:TankUpdate):
+    update_tank_dict = tank_update_request.model_dump(exclude_unset= True)
+    updated_tank = await tank_db["tanks"].find_one_and_update({"_id":ObjectId(id)}, {"$set": update_tank_dict}, return_document=True)
+    print(updated_tank)
+    if updated_tank is None:  
         raise HTTPException(status_code= 404, detail="Tank not found")
-    update_data = tank_update.model_dump(exclude_unset=True)
-    #await tank_db["tanks"].update_one({"_id": PyObjectId(id)},{set: update_data})
-    #updated_tank = await tank_db["tanks"].find_one({"_id": PyObjectId(id)})
     return Tank(**updated_tank)
