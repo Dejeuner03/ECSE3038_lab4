@@ -60,10 +60,12 @@ class ProfileCollection(BaseModel):
     
 async def update_profile():
     profile = await profile_db["Files"].find_one({})
+    if profile is None:
+            raise ValueError("No profile found in the database")
     profile_object = Profile(**profile)
     profile_object.last_updated = datetime.now()
     profile_dict =  profile_object.model_dump()
-    profile_db["Files"].find_one_and_update({"_id": PyObjectId(profile["_id"])},{"$set":profile_dict})
+    profile_db["Files"].find_one_and_update({"_id": ObjectId(profile["_id"])},{"$set":profile_dict})
 
 @app.post("/profile",status_code= 201)
 async def create_profile(profile_request: Profile):
@@ -95,13 +97,14 @@ async def create_tank(tank_request: Tank):
     tank = await tank_db["tanks"].find_one({"_id": created_tank.inserted_id})
     if tank is None:
         raise HTTPException(400)
-    #await update_profile()
+    await update_profile()
     return Tank(**tank)
   
 @app.delete("/tank/{id}")
 async def delete_tank(id: str):
     tank_deletion = await tank_db["tanks"].delete_one({"_id": ObjectId(id)})
     if tank_deletion.deleted_count == 1:
+        await update_profile()
         return Response(status_code= 204)
     raise HTTPException(status_code= 404, detail=f"Tank {id} not found")
     
@@ -112,4 +115,5 @@ async def update_tank(id: str, tank_update_request:TankUpdate):
     print(updated_tank)
     if updated_tank is None:  
         raise HTTPException(status_code= 404, detail="Tank not found")
+    await update_profile()
     return Tank(**updated_tank)
